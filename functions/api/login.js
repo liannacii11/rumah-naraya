@@ -1,4 +1,4 @@
-import { sessionCookie } from "../_auth.js";
+import { createSessionCookie } from "../_auth.js";
 
 export async function onRequestPost({ request, env }) {
   const body = await request.json().catch(() => ({}));
@@ -10,9 +10,12 @@ export async function onRequestPost({ request, env }) {
     );
   }
 
+  const email = String(body.email || "").trim().toLowerCase();
+  const password = String(body.password || "");
+
   if (
-    body.email?.toLowerCase() !== env.ADMIN_EMAIL.toLowerCase() ||
-    body.password !== env.ADMIN_PASSWORD
+    email !== env.ADMIN_EMAIL.trim().toLowerCase() ||
+    password !== env.ADMIN_PASSWORD
   ) {
     return Response.json(
       { error: "Email atau password salah." },
@@ -20,12 +23,16 @@ export async function onRequestPost({ request, env }) {
     );
   }
 
+  const cookie = await createSessionCookie(env.SESSION_SECRET);
+
   return new Response(
     JSON.stringify({ ok: true }),
     {
+      status: 200,
       headers: {
         "Content-Type": "application/json",
-        "Set-Cookie": sessionCookie(crypto.randomUUID())
+        "Set-Cookie": cookie,
+        "Cache-Control": "no-store"
       }
     }
   );
