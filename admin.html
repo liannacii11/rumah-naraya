@@ -1,73 +1,194 @@
-const COOKIE_NAME = "rn_session";
-const MAX_AGE = 60 * 60 * 8; // 8 jam
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
 
-function base64url(bytes) {
-  return btoa(String.fromCharCode(...new Uint8Array(bytes)))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/g, "");
-}
+  <title>Dashboard Rumah Naraya</title>
 
-function hexToBytes(hex) {
-  const bytes = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < bytes.length; i++) {
-    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-  }
-  return bytes;
-}
+  <style>
+    * {
+      box-sizing: border-box;
+    }
 
-async function sign(value, secret) {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign", "verify"]
-  );
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background: #f4f7fb;
+      color: #17233b;
+    }
 
-  const signature = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    new TextEncoder().encode(value)
-  );
+    .box {
+      max-width: 1000px;
+      margin: 30px auto;
+      background: white;
+      padding: 25px;
+      border-radius: 18px;
+    }
 
-  return base64url(signature);
-}
+    h1 {
+      color: #102f67;
+      margin-top: 0;
+    }
 
-async function verify(value, signature, secret) {
-  try {
-    const key = await crypto.subtle.importKey(
-      "raw",
-      new TextEncoder().encode(secret),
-      { name: "HMAC", hash: "SHA-256" },
-      false,
-      ["sign", "verify"]
-    );
+    .subtitle {
+      color: #64748b;
+      margin-bottom: 25px;
+    }
 
-    return await crypto.subtle.verify(
-      "HMAC",
-      key,
-      hexToBytes(
-        Uint8Array.from(
-          atob(signature.replace(/-/g, "+").replace(/_/g, "/") + "=="),
-          c => c.charCodeAt(0)
-        )
-          .map(x => x.toString(16).padStart(2, "0"))
-          .join("")
-      ),
-      new TextEncoder().encode(value)
-    );
-  } catch {
-    return false;
-  }
-}
+    .logout {
+      background: #102f67;
+      color: white;
+      border: 0;
+      padding: 11px 18px;
+      border-radius: 9px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-bottom: 20px;
+    }
 
-export async function createSessionCookie(secret) {
-  const expires = Math.floor(Date.now() / 1000) + MAX_AGE;
-  const signature = await sign(String(expires), secret);
+    .logout:hover {
+      opacity: .9;
+    }
 
-  return `${COOKIE_NAME}=${expires}.${signature}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${MAX_AGE}`;
-}
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 15px;
+    }
+
+    .card {
+      display: block;
+      text-decoration: none;
+      color: #17233b;
+      padding: 22px;
+      min-height: 150px;
+      border: 1px solid #e2e8f1;
+      border-radius: 16px;
+      background: white;
+      box-shadow: 0 3px 12px rgba(16,47,103,.06);
+      transition: .2s;
+    }
+
+    .card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 7px 20px rgba(16,47,103,.12);
+    }
+
+    .icon {
+      font-size: 32px;
+      margin-bottom: 10px;
+    }
+
+    .card h2 {
+      color: #102f67;
+      margin: 0 0 8px;
+      font-size: 22px;
+    }
+
+    .card p {
+      margin: 0;
+      color: #64748b;
+    }
+
+    .info {
+      margin-top: 25px;
+      padding: 18px;
+      border-radius: 14px;
+      background: #eef5ff;
+      color: #29456f;
+    }
+
+    @media (max-width: 700px) {
+      .box {
+        margin: 15px;
+        padding: 20px;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="box">
+
+    <h1>Dashboard Rumah Naraya 👋</h1>
+
+    <p class="subtitle">
+      Sistem administrasi Bimbel Rumah Naraya
+    </p>
+
+    <button class="logout" onclick="logoutAdmin()">
+      Keluar
+    </button>
+
+    <div class="grid">
+
+      <a class="card" href="#">
+        <div class="icon">👨‍🎓</div>
+        <h2>Siswa</h2>
+        <p>Data siswa aktif</p>
+      </a>
+
+      <a class="card" href="#">
+        <div class="icon">📅</div>
+        <h2>Jadwal</h2>
+        <p>Sesi belajar</p>
+      </a>
+
+      <a class="card" href="#">
+        <div class="icon">✅</div>
+        <h2>Absensi</h2>
+        <p>Data kehadiran siswa</p>
+      </a>
+
+      <a class="card" href="#">
+        <div class="icon">💰</div>
+        <h2>Pembayaran</h2>
+        <p>Data keuangan bimbel</p>
+      </a>
+
+      <a class="card" href="#">
+        <div class="icon">📚</div>
+        <h2>Laporan</h2>
+        <p>Perkembangan siswa</p>
+      </a>
+
+      <a class="card" href="#">
+        <div class="icon">📝</div>
+        <h2>Pendaftaran</h2>
+        <p>Calon siswa baru</p>
+      </a>
+
+    </div>
+
+    <div class="info">
+      <strong>Rumah Naraya</strong><br>
+      Selamat datang di sistem administrasi bimbel.
+    </div>
+
+  </div>
+
+  <script>
+    async function logoutAdmin() {
+      try {
+        await fetch("/api/logout", {
+          method: "POST"
+        });
+      } catch (e) {
+        // Tetap lanjut meskipun endpoint logout gagal
+      }
+
+      window.location.href = "/";
+    }
+  </script>
+
+</body>
+</html>}
 
 export async function hasValidSession(request, secret) {
   if (!secret) return false;
