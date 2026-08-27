@@ -1,5 +1,100 @@
-<!doctype html><html lang="id"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin Rumah Naraya</title>
-<style>body{font-family:Arial;margin:0;background:#f4f7fb;color:#17233b}.box{max-width:900px;margin:30px auto;background:white;padding:25px;border-radius:18px}h1,h2{color:#102f67}input,button{padding:11px;margin:5px 0;border-radius:9px;border:1px solid #ddd}input{width:100%;box-sizing:border-box}button{background:#102f67;color:white;font-weight:bold}.hidden{display:none}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.card{padding:18px;border:1px solid #e2e8f1;border-radius:14px}@media(max-width:650px){.grid{grid-template-columns:1fr}}</style>
-<body><div id="login" class="box"><h1>🔐 Dashboard Rumah Naraya</h1><p>Admin pribadi.</p><input id="email" type="email" placeholder="Email admin"><input id="password" type="password" placeholder="Password"><button onclick="loginAdmin()">Masuk</button><p id="msg"></p></div>
-<div id="app" class="box hidden"><h1>Dashboard Rumah Naraya 👋</h1><button onclick="logoutAdmin()">Keluar</button><div class="grid"><div class="card"><h2>👨‍🎓 Siswa</h2><p>Data siswa aktif</p></div><div class="card"><h2>📅 Jadwal</h2><p>Sesi belajar</p></div><div class="card"><h2>✅ Absensi</h2><p>Kehadiran</p></div><div class="card"><h2>💰 Pembayaran</h2><p>Keuangan</p></div><div class="card"><h2>📚 Laporan</h2><p>Perkembangan</p></div><div class="card"><h2>📝 Pendaftaran</h2><p>Calon siswa</p></div></div></div>
-<script>async function check(){let r=await fetch('/api/me');if(r.ok)openApp()}async function loginAdmin(){msg.textContent='';let r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email.value,password:password.value})});let j=await r.json();if(!r.ok){msg.textContent=j.error||'Login gagal';return}openApp()}function openApp(){login.classList.add('hidden');app.classList.remove('hidden')}async function logoutAdmin(){await fetch('/api/logout',{method:'POST'});location.reload()}check()</script></body></html>
+const COOKIE_NAME = "rn_session";
+const MAX_AGE = 60 * 60 * 8; // 8 jam
+
+function base64url(bytes) {
+  return btoa(String.fromCharCode(...new Uint8Array(bytes)))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+function hexToBytes(hex) {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  }
+  return bytes;
+}
+
+async function sign(value, secret) {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign", "verify"]
+  );
+
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(value)
+  );
+
+  return base64url(signature);
+}
+
+async function verify(value, signature, secret) {
+  try {
+    const key = await crypto.subtle.importKey(
+      "raw",
+      new TextEncoder().encode(secret),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign", "verify"]
+    );
+
+    return await crypto.subtle.verify(
+      "HMAC",
+      key,
+      hexToBytes(
+        Uint8Array.from(
+          atob(signature.replace(/-/g, "+").replace(/_/g, "/") + "=="),
+          c => c.charCodeAt(0)
+        )
+          .map(x => x.toString(16).padStart(2, "0"))
+          .join("")
+      ),
+      new TextEncoder().encode(value)
+    );
+  } catch {
+    return false;
+  }
+}
+
+export async function createSessionCookie(secret) {
+  const expires = Math.floor(Date.now() / 1000) + MAX_AGE;
+  const signature = await sign(String(expires), secret);
+
+  return `${COOKIE_NAME}=${expires}.${signature}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${MAX_AGE}`;
+}
+
+export async function hasValidSession(request, secret) {
+  if (!secret) return false;
+
+  const cookieHeader = request.headers.get("Cookie") || "";
+
+  const cookie = cookieHeader
+    .split(";")
+    .map(v => v.trim())
+    .find(v => v.startsWith(`${COOKIE_NAME}=`));
+
+  if (!cookie) return false;
+
+  const value = cookie.slice(COOKIE_NAME.length + 1);
+  const [expires, signature] = value.split(".");
+
+  if (!expires || !signature) return false;
+
+  const expiry = Number(expires);
+
+  if (!Number.isFinite(expiry) || expiry < Math.floor(Date.now() / 1000)) {
+    return false;
+  }
+
+  return await verify(expires, signature, secret);
+}
+
+export function clearSessionCookie() {
+  return `${COOKIE_NAME}=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0`;
+}
